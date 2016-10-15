@@ -45,6 +45,7 @@ RC RM_Manager::openFile(const char* fileName, RM_FileHandle& fileHandle) {
 }
 
 RC RM_Manager::closeFile(RM_FileHandle& fileHandle) {
+    fileHandle.forcePages();
     fileManager.closeFile(fileHandle.getFileID());
     return OK;
 }

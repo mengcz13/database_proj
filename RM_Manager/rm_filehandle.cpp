@@ -6,7 +6,7 @@ RC RM_FileHandle::getRec(const RID& rid, RM_Record& rec) const {
     SlotNum slotID = 0;
     rid.getPageID(pageID);
     rid.getSlotID(slotID);
-    char* p = bufPageManager.getPage(fileID, pageID, index);
+    char* p = (char*)bufPageManager.getPage(fileID, pageID, index);
     char* prec = p + getPSlotOffSet(slotID);
     rec.setRID(rid);
     char* _pdata = NULL;
@@ -21,7 +21,7 @@ RC RM_FileHandle::insertRec(const char* pData, RID& rid) {
     char* pPage = NULL;
     PageNum firstFreePage = fileHeader.firstFree;
     for (; firstFreePage < fileHeader.pagen; ) {
-        pPage = bufPageManager.getPage(fileID, firstFreePage, index);
+        pPage = (char*)bufPageManager.getPage(fileID, firstFreePage, index);
         pPageHeader->fromCharArray(pPage);
         bufPageManager.access(index);
         if (pPageHeader->currentSlotNum < fileHeader.slotn) {
@@ -40,23 +40,24 @@ RC RM_FileHandle::insertRec(const char* pData, RID& rid) {
         ++fileHeader.pagen;
         pPageHeader->nextFree = fileHeader.pagen;
         fileHeader.firstFree = pn;
-        pPage = bufPageManager.getPage(fileID, pn, index);
+        pPage = (char*)bufPageManager.getPage(fileID, pn, index);
         pPageHeader->toCharArray(pPage);
         bufPageManager.markDirty(index);
     }
-    pPage = bufPageManager.getPage(fileID, pn, index);
+    pPage = (char*)bufPageManager.getPage(fileID, pn, index);
     prec = pPage + getPSlotOffSet(sn);
     memcpy(prec, pData, fileHeader.slotSize);
     pPageHeader->insertAt(sn);
     if (pPageHeader->currentSlotNum == fileHeader.slotn) {
-        fileHeader->firstFree = pPageHeader->nextFree;
+        fileHeader.firstFree = pPageHeader->nextFree;
     }
     pPageHeader->toCharArray(pPage);
     bufPageManager.markDirty(index);
-    int index2 = 0;
-    char* pFH = bufPageManager.getPage(fileID, 0, index2);
-    fileHeader.toCharArray(pFH);
-    bufPageManager.markDirty(index2);
+    fileHeaderModified = true;
+    // int index2 = 0;
+    // char* pFH = (char*)bufPageManager.getPage(fileID, 0, index2);
+    // fileHeader.toCharArray(pFH);
+    // bufPageManager.markDirty(index2);
     rid.copyFrom(RID(pn, sn));
     return OK;
 }
@@ -65,7 +66,7 @@ RC RM_FileHandle::deleteRec(const RID& rid) {
     int index = 0, pn = 0, sn = 0;
     rid.getPageID(pn);
     rid.getSlotID(sn);
-    char* p = bufPageManager.getPage(fileID, pn, index);
+    char* p = (char*)bufPageManager.getPage(fileID, pn, index);
     pPageHeader->fromCharArray(p);
     pPageHeader->deleteAt(sn);
     if (pPageHeader->currentSlotNum == fileHeader.slotn - 1) {
@@ -74,9 +75,10 @@ RC RM_FileHandle::deleteRec(const RID& rid) {
     }
     pPageHeader->toCharArray(p);
     bufPageManager.markDirty(index);
-    p = bufPageManager.getPage(fileID, 0, index);
-    fileHeader.toCharArray(p);
-    bufPageManager.markDirty(index);
+    fileHeaderModified = true;
+    // p = (char*)bufPageManager.getPage(fileID, 0, index);
+    // fileHeader.toCharArray(p);
+    // bufPageManager.markDirty(index);
     return OK;
 }
 
@@ -86,8 +88,8 @@ RC RM_FileHandle::updateRec(const RM_Record& rec) {
     rec.getRid(rid);
     rid.getPageID(pn);
     rid.getSlotID(sn);
-    char* p = bufPageManager.getPage(fileID, pn, index);
-    char* prec = p + getPSlotOffSet(slotID);
+    char* p = (char*)bufPageManager.getPage(fileID, pn, index);
+    char* prec = p + getPSlotOffSet(sn);
     char* data = NULL;
     rec.getData(data);
     memcpy(prec, data, fileHeader.slotSize);
