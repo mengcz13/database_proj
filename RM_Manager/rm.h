@@ -87,7 +87,7 @@ public:
     RC getRid(RID& rid) const {
         rid.copyFrom(_rid);
     }
-    RC setData(const char* pData);
+    // RC setData(const char* pData);
     RC setRID(const RID& rid) {
         _rid.copyFrom(rid);
     }
@@ -133,7 +133,7 @@ struct FileHeader {
 
     FileHeader(PageNum p, SlotNum sn, int s, FP f): pagen(p), slotn(sn), slotSize(s), firstFree(f) {}
     FileHeader(int s): pagen(1), slotSize(s), firstFree(1) {
-        slotn = (PAGE_SIZE - PageHeader::getFixedSize()) / (slotSize + 1);
+        slotn = ((PAGE_SIZE - PageHeader::getFixedSize() - 1) << 3) / (slotSize << 3 + 1);
     }
     FileHeader(char* p) {
         fromCharArray(p);
@@ -150,11 +150,11 @@ struct FileHeader {
 // Header of page1, 2, .. 
 struct PageHeader {
     FP nextFree;
-    bool isFree;
+    SlotNum currentSlotNum;
     MyBitSet myBitSet;
     
-    PageHeader(SlotNum s): myBitSet(s) {}
-    static size_t getFixedSize() { return sizeof(FP) + sizeof(bool); }
+    PageHeader(SlotNum s): currentSlotNum(0), myBitSet(s) {}
+    static size_t getFixedSize() { return sizeof(FP) + sizeof(SlotNum); }
     static size_t getSize(int slotNum) {
         return getFixedSize() + MyBitSet::getDataSize(slotNum);
     }
@@ -162,16 +162,31 @@ struct PageHeader {
     void fromCharArray(char* source) {
         nextFree = *((FP*)source);
         source += sizeof(FP);
-        isFree = *((bool*)source);
-        source += sizeof(bool);
+        currentSlotNum = *((SlotNum*)source);
+        source += sizeof(SlotNum);
         myBitSet.fromCharArray(source);
     }
     void toCharArray(char* target) {
         *((FP*)target) = nextFree;
         target += sizeof(FP);
-        *((bool*)target) = isFree;
-        target += sizeof(bool);
+        *((SlotNum*)target) = currentSlotNum;
+        target += sizeof(SlotNum);
         myBitSet.toCharArray(target);
+    }
+    void insertAt(SlotNum s) {
+        ++currentSlotNum;
+        myBitSet.set(s);
+    }
+    void deleteAt(SlotNum s) {
+        --currentSlotNum;
+        myBitSet.clear(s);
+    }
+    bool checkAt(SlotNum s) {
+        return myBitSet.check(s);
+    }
+    void reset() {
+        currentSlotNum = 0;
+        myBitSet.clearAll();
     }
 };
 
@@ -200,6 +215,10 @@ struct MyBitSet {
 
     void clear(SlotNum n) { // set to 0
         (*(getPos(n))) &= (~LBIT(n % sizeof(Unit), Unit));
+    }
+
+    void clearAll() {
+        memset(_data, 0, sizeof(Unit) * _datasize);
     }
 
     bool check(SlotNum n) { // check if is 1
