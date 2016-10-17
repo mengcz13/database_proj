@@ -28,6 +28,8 @@ RC RM_Manager::createFile(const char* fileName, int recordSize) {
 
 RC RM_Manager::destroyFile(const char* fileName) {
     //TODO: delete file
+    if(remove(filename)!= 0)//if the deletion failed
+        return FILEERROR;
     return OK;
 }
 
